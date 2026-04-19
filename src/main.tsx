@@ -12,7 +12,7 @@ createRoot(document.getElementById('root')!).render(
         {/* Home page – original app */}
         <Route path="/" element={<App />} />
         {/* Demo page – shows the GSAP demo you created */}
-        <Route path="/example" element={<DemoPage />} />
+        {/* <Route path="/example" element={<DemoPage />} /> */}
       </Routes>
     </BrowserRouter>
   </StrictMode>,

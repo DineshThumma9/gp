@@ -17,6 +17,9 @@ dist-ssr
 !.vscode/extensions.json
 .idea
 .DS_Store
+src/AppDemo.tsx
+src/DemoPage.tsx
+
 *.suo
 *.ntvs*
 *.njsproj

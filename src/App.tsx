@@ -14,6 +14,7 @@ import DrawSVGPlugin from "gsap/DrawSVGPlugin"; // used for SVG path animations 
 import { Draggable, MotionPathHelper } from 'gsap/all';
 import { MotionPathPlugin } from 'gsap/MotionPathPlugin';
 import MorphSVGPlugin from 'gsap/MorphSVGPlugin';
+// @ts-ignore
 import * as d3 from 'd3';
 
 gsap.registerPlugin(useGSAP, ScrambleTextPlugin, SplitText, TextPlugin, ScrollTrigger, Flip, DrawSVGPlugin, MotionPathPlugin, MorphSVGPlugin,MotionPathHelper,Draggable); // register the hook to avoid React version discrepancies 
@@ -31,7 +32,7 @@ function App() {
   const wave2 = "M0,300 Q150,400 300,300 T600,300 T900,300 L900,600 L0,600 Z";
 
 const circles = useMemo(() => {
-    return Array.from({ length: 10 }).map((_, i) => {
+    return Array.from({ length: 50 }).map((_, i) => {
       const size = Math.floor(Math.random() * 80) + 10;
       // Constrain position so circles don't overflow (600px height, full width)
       // Reserve space for the circle size
@@ -44,6 +45,8 @@ const circles = useMemo(() => {
         top: Math.random() * Math.max(maxTopPercent, 10),
         left: Math.random() * Math.max(maxLeftPercent, 10),
         color: `hsl(${Math.random() * 360}, 70%, 60%)`,
+        floatAmount: Math.random() * 20 + 10, // Random float distance (10-30px)
+        floatDuration: Math.random() * 2 + 2, // Random duration (2-4s)
       };
     });
   }, [count]);
@@ -195,7 +198,6 @@ const circles = useMemo(() => {
 
   const onClick = contextSafe(() => {
     gsap.to(circleRef.current, {
-
       x: 100,
       y: 100,
       rotation: "+=360",
@@ -209,12 +211,123 @@ const circles = useMemo(() => {
       repeat: 0,
       overwrite: true,
       repeatDelay: 2,
+    });
+  });
 
-
-
+  // ===== CENTER TEXT WITH GSAP & FLOATING ANIMATION FOR CIRCLES =====
+  useGSAP(() => {
+    // Center overlay text in the middle of container using GSAP
+    gsap.set(".overlay-text", {
+      position: "absolute",
+      left: "50%",
+      top: "50%",
+      xPercent: -50,
+      yPercent: -50,
+      zIndex: 9999  // Ensure text is always above circles
     });
 
-  });
+    // Floating animation for circles
+    circles.forEach((circle) => {
+      gsap.to(`.circle-${circle.id}`, {
+        y: circle.floatAmount,
+        duration: circle.floatDuration,
+        ease: "sine.inOut",
+        yoyo: true,
+        repeat: -1,
+        delay: Math.random() * 0.5, // Stagger start times
+      });
+    });
+  }, { dependencies: [circles.length] });
+
+  // ===== COLLISION DETECTION & REACTION WITH GSAP TICKER =====
+  useGSAP(() => {
+    const checkCollisions = () => {
+      const circleElements = Array.from(document.querySelectorAll('.drag'));
+      
+      for (let i = 0; i < circleElements.length; i++) {
+        for (let j = i + 1; j < circleElements.length; j++) {
+          const el1 = circleElements[i] as HTMLElement;
+          const el2 = circleElements[j] as HTMLElement;
+          
+          const rect1 = el1.getBoundingClientRect();
+          const rect2 = el2.getBoundingClientRect();
+          
+          const center1 = {
+            x: rect1.left + rect1.width / 2,
+            y: rect1.top + rect1.height / 2,
+            r: rect1.width / 2
+          };
+          
+          const center2 = {
+            x: rect2.left + rect2.width / 2,
+            y: rect2.top + rect2.height / 2,
+            r: rect2.width / 2
+          };
+          
+          // Calculate distance between centers
+          const dx = center2.x - center1.x;
+          const dy = center2.y - center1.y;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          const minDistance = center1.r + center2.r;
+          
+          // COLLISION DETECTED!
+          if (distance < minDistance) {
+            // Flash colors on collision
+            gsap.to(el1, {
+              filter: 'brightness(1.5)',
+              duration: 0.2,
+              yoyo: true,
+              repeat: 1,
+              overwrite: false
+            });
+            
+            gsap.to(el2, {
+              filter: 'brightness(1.5)',
+              duration: 0.2,
+              yoyo: true,
+              repeat: 1,
+              overwrite: false
+            });
+            
+            // Scale pulse on collision
+            gsap.to([el1, el2], {
+              scale: 1.2,
+              duration: 0.15,
+              yoyo: true,
+              repeat: 1,
+              overwrite: false
+            });
+            
+            // Bounce back effect
+            const bounceStrength = 20;
+            const angle = Math.atan2(dy, dx);
+            const force1 = -bounceStrength;
+            const force2 = bounceStrength;
+            
+            gsap.to(el1, {
+              x: `+=${Math.cos(angle) * force1}`,
+              y: `+=${Math.sin(angle) * force1}`,
+              duration: 0.3,
+              ease: "power1.out",
+              overwrite: false
+            });
+            
+            gsap.to(el2, {
+              x: `+=${Math.cos(angle) * force2}`,
+              y: `+=${Math.sin(angle) * force2}`,
+              duration: 0.3,
+              ease: "power1.out",
+              overwrite: false
+            });
+          }
+        }
+      }
+    };
+    
+    // Use GSAP ticker instead of setInterval for better animation loop integration
+    gsap.ticker.add(checkCollisions);
+    return () => gsap.ticker.remove(checkCollisions);
+  }, { dependencies: [circles.length] });
 
 
   const onStaggerClick = contextSafe(() => {
@@ -294,6 +407,9 @@ const circles = useMemo(() => {
       }
 
     });
+
+
+
 
   
     Draggable.create(".drag", {
@@ -395,22 +511,8 @@ gsap.from('.ddrag', {
     })
 
 
-    gsap.set('.sq', {
-      x: 0,
-      y: 0,
-      rotation: 0,
-      transformOrigin: '50% 50%',
-      drawSVG: '0% 0%',
-      fill: 'transparent',
-      stroke: '#ef4444',
-    });
+  
 
-    gsap.set('.svg-shell', {
-      rotation: 0,
-      borderRadius: '12px',
-      backgroundColor: '#0f172a',
-      transformOrigin: '50% 50%',
-    });
 
     const getCornerTravel = () => {
       const host = document.querySelector('.svg-shell');
@@ -447,48 +549,6 @@ gsap.from('.ddrag', {
       },
     });
 
-    drawChainTl
-      .fromTo(
-        '.sq',
-        {
-          transformOrigin: '50% 50%',
-        },
-        {
-          drawSVG: '0% 100%',
-          duration: 1.0,
-          ease: 'power1.out',
-        }
-      )
-      .to('.sq', {
-        fill: '#facc15',
-        stroke: '#3b82f6',
-        duration: 0.35,
-      })
-      .to(
-        '.svg-container',
-        {
-          duration: 1.15,
-          rotation: 360,
-          transformOrigin: '50% 50%',
-        },
-        '>-0.05'
-      )
-      .to('.svg-shell', {
-        duration: 0.45,
-        borderRadius: '50%',
-        backgroundColor: '#fb923c',
-      }, '<')
-      .to(
-        '.sq',
-        {
-          duration: 1.9,
-          x: () => getCornerTravel().x,
-          y: () => getCornerTravel().y,
-          rotation: 990,
-          ease: 'power3.in',
-        },
-        '>'
-      );
 
 
 
@@ -637,7 +697,39 @@ gsap.from('.ddrag', {
     });
 
 
+    
+    gsap.to(".svg-shelll",{
+      rotation:"+=360",
+      borderRadius:"50%",
+      backgroundColor:"yellow",
+      x:400,
+      duration:5,
+      drawSVG:true,
+      zIndex:10,
+      onComplete:() => {
+        gsap.to(".svg-container",{
+       rotation:"+=360",
+        borderRadius:"50%",
+       backgroundColor:"pink",
+      x:450,
+      duration:3,
+      zIndex:10,
+      drawSVG:true,
+      onComplete:() => {
+         gsap.to(".sq",{
+          rotation:"+=360",
+          borderRadius:"50%",
+          backgroundColor:"red",
+          x:405,
+          duration:5,
+          drawSVG:true,
 
+         })  
+      }
+
+        })
+      }
+    })
     gsap.to("#grid-child1", {
       scrollTrigger: {
         trigger: '#grid-container',
@@ -805,7 +897,7 @@ gsap.from('.ddrag', {
                 </div>
             </section>
 
-            <section className="flex flex-col justify-center items-center font-bold font-sans text-[#121212] bg-amber-100 m-25 rounded-lg p-12 "className="flex flex-col justify-center items-center font-bold font-sans text-[#121212] bg-amber-100 m-25 rounded-lg p-12 "className="flex flex-col justify-center items-center font-bold font-sans text-[#121212] bg-amber-100 m-25 rounded-lg p-12 ">
+            <section className="flex flex-col justify-center items-center font-bold font-sans text-[#121212] bg-amber-100 m-25 rounded-lg p-12">
               <h3 className='m-1 p-3'>To <code>gsap.to({ })</code></h3>
               <h3 className='m-1 p-3'>Start from To({ }) props get to default values we have defined</h3>
               <div id="tobox" className='w-[100px] flex h-[100px] text-center bg-red-500 justify-center items-center content-center rounded-lg'>
@@ -946,8 +1038,8 @@ gsap.from('.ddrag', {
 
 
 
-      <div className='flex flex-row items-stretch w-full m-25'>
-        <div id="alt-container" className=' flex flex-col w-[80%] h-fit m-10 p-10' >
+      <div className='flex flex-row items-stretch w-full ml-25 mr-25'>
+        <div id="alt-container" className=' flex flex-col w-[80%] h-fit' >
           <div className='w-[200px] h-[200px] alt-box bg-amber-300 text-black p-3 m-5 flex flex-col justify-center items-center text-center font-bold rounded-lg'>
             Alt Box1
           </div>
@@ -967,7 +1059,7 @@ gsap.from('.ddrag', {
 
         </div>
 
-        <div id="scroll-container" className=' flex w-[20%] flex-col items-center justify-center self-stretch px-6 py-10 font-bold text-2xl'>
+        <div id="scroll-container" className=' flex w-[20%] flex-col items-center justify-center self-stretch  font-bold text-2xl'>
           <div id="scroll-smoother" className='flex flex-col items-center w-full gap-1 text-center h-full justify-center'>
 
             SCROLL SMOOTHER
@@ -1008,10 +1100,12 @@ gsap.from('.ddrag', {
 
       <section id="spacer"></section>
 
-      <div className='draw-chain-wrap relative w-full h-fit m-6 px-4 flex justify-center items-center align-center content-center bg-green-300 overflow-visible'>
-        <div className='svg-shell w-[500px] h-[500px] border-4 border-amber-300 rounded-xl flex justify-center items-center self-center bg-slate-900'>
-          <svg width={500} height={500} className='svg-container overflow-visible' fill="none" xmlns="http://www.w3.org/2000/svg">          
-            <rect className='sq' width={200} height={200} fill="purple" x={150} y={150} stroke='red' strokeWidth='8' />
+    
+
+      <div className='draw-wrap relative w-full h-fit m-6  flex justify-start items-center align-center content-center bg-green-300 overflow-visible'>
+        <div className='svg-shelll w-[500px] h-[500px] border-4 border-amber-300 bg-amber-400 rounded-xl flex justify-center items-center self-center'>
+          <svg width={350} height={350} className='svg-container overflow-visible bg-pink-400 border-red-400' fill="purple"  xmlns="http://www.w3.org/2000/svg">          
+            <rect className='sq border-amber-400' width={200} height={200} fill="purple" x={80} y={80} stroke='red' strokeWidth='8' />
           </svg>
         </div>
       </div>
@@ -1095,33 +1189,61 @@ gsap.from('.ddrag', {
 
         </div>
       </section>
-      <div className='w-full h-[600px] drag-container bg-black relative'>
+      <div className='w-full h-[600px] drag-container relative' style={{ perspective: '1000px' }}>
+          {/* TEXT AT CENTER - Above circles (positioned by GSAP) */}
+          <div className='overlay-text text-center' style={{ fontSize: '80px', fontWeight: 'bold', textShadow: '0 4px 12px rgba(0, 0, 0, 0.9)', lineHeight: '1', color: '#ffffff' }}>Overlay Text</div>
+
+          {/* CIRCLES AS BACKGROUND - Below text */}
+          <div className='absolute inset-0' style={{ zIndex: 1 }}>
            {
-            circles.map((circle) => (
-              <div key={circle.id}  className='absolute rounded-full drag' style={{ width: `${circle.size}px`, height: `${circle.size}px`, top: `${circle.top}%`, left: `${circle.left}%`, backgroundColor: circle.color }}></div>
-            ))
+            circles.map((circle) => {
+              // Dynamic z-index: circles further down (higher top value) get higher z-index
+              const zIndex = Math.floor(circle.top * 100);
+              
+              return (
+                <div 
+                  key={circle.id}
+                  className={`circle-${circle.id} absolute rounded-full drag`}
+                  style={{
+                    width: `${circle.size}px`,
+                    height: `${circle.size}px`,
+                    top: `${circle.top}%`,
+                    left: `${circle.left}%`,
+                    backgroundColor: circle.color,
+                    zIndex: zIndex,
+                    transform: `translate(-50%, -50%)`,
+                    boxShadow: `0 ${circle.size / 5}px ${circle.size / 3}px rgba(0, 0, 0, 0.3)`,
+                    transition: 'box-shadow 0.3s ease',
+                  }}
+                />
+              );
+            })
            }
-    
+          </div>
       </div>
       
-      <div className='w-full  h-[600px] mt-10 ddrag-container bg-black relative'>
+      <div className='w-full  h-[600px] mt-10 ddrag-container bg-red-500 relative'>
   <svg width="100%" height="100%" style={{ display: 'block' }}>
     
     {/* 1. Draw Links First (so they are behind the circles) */}
 {/* 1. D3 Links converted to SVG Paths for GSAP */}
-{links.map((link, index) => (
-  <path
-    key={`link-${index}`}
-
-    id={`path-${link.source.id}-${link.target.id}`} // crucial for MotionPath!
-    className="d3-link"
-    d={`M ${link.source.x} ${link.source.y} L ${link.target.x} ${link.target.y}`}
-    fill="none"
-    stroke="rgba(255, 255, 255, 0.3)"
-    strokeWidth="2"
-  />
+{links.map((link: any, index: number) => {
+  const sourceNode = link.source;
+  const targetNode = link.target;
+  if (!sourceNode || !targetNode) return null;
   
-))}
+  return (
+    <path
+      key={`link-${index}`}
+      id={`path-${sourceNode.id}-${targetNode.id}`}
+      className="d3-link"
+      d={`M ${sourceNode.x} ${sourceNode.y} L ${targetNode.x} ${targetNode.y}`}
+      fill="orange"
+      stroke="black"
+      strokeWidth="5"
+    />
+  );
+})}
 
 
     {/* 2. Draw Nodes */}
@@ -1131,8 +1253,8 @@ gsap.from('.ddrag', {
         key={node.id}
         cx={node.x}
         cy={node.y}
-        r="25"
-        fill="#4dabf7"
+        r="30"
+        fill=""
         stroke="#fff"
         strokeWidth="2"
       />

@@ -98,3 +98,33 @@ p {
   margin: 0;
 }
 
+/* ===== SLEEK SCROLLBAR STYLING ===== */
+html {
+  scroll-behavior: smooth;
+}
+
+/* WebKit scrollbar (Chrome, Safari, Edge) */
+::-webkit-scrollbar {
+  width: 12px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #6366f1 0%, #8b5cf6 100%);
+  border-radius: 6px;
+  transition: background 0.3s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #7c3aed 0%, #a855f7 100%);
+}
+
+/* Firefox scrollbar */
+* {
+  scrollbar-color: #6366f1 rgba(0, 0, 0, 0.05);
+  scrollbar-width: thin;
+}
+
